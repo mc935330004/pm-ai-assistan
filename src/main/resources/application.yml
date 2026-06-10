@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: pm-ai-assistan
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      chat:
+        model: qwen-plus
+  data:
+    redis:
+      client-name:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 1
+server:
+  port: 8999
+  servlet:
+    context-path: /agent-pm
+  #pm系统配置
+pm:
+  system:
+    base-url: http://localhost:9999/pm
