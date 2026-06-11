@@ -32,7 +32,7 @@ public class DynamicPmApiCaller {
      * Spring 注入构造方法。
      */
     public DynamicPmApiCaller(RestTemplate restTemplate,
-                              @Value("${pm.system.base-url:http://localhost:9999/pm}") String baseUrl) {
+                              @Value("${pm.system.base-url:http://pm.s-ic.cn/pm}") String baseUrl) {
         this.restTemplate = restTemplate;
         this.baseUrl = trimTrailingSlash(baseUrl);
     }

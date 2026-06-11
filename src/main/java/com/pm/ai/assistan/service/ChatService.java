@@ -3,6 +3,8 @@ package com.pm.ai.assistan.service;
 import com.pm.ai.assistan.dto.ChatRequest;
 import com.pm.ai.assistan.unit.AgentResult;
 import com.pm.ai.assistan.vo.ChatResponseVO;
+import com.pm.ai.tools.tool.PmApiQueryRequest;
+import com.pm.ai.tools.tool.PmApiQueryResponse;
 import com.pm.ai.tools.tool.PmApiQueryTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,8 +61,7 @@ public class ChatService {
             // 注册单一目录路由工具，模型只看到 pm_api_query，不直接看到 100 个接口。
             String answer = chatClient.prompt()
                     .system(SYSTEM)
-                    .user(question)
-                    .toolCallbacks(ToolCallbackProvider.from(pmApiQueryTool.toolCallback(authorization)))
+                    .user(question).tools(ToolCallbackProvider.from(pmApiQueryTool.toolCallback(authorization)))
                     .call()
                     .content();
 
@@ -89,12 +90,34 @@ public class ChatService {
                 return Flux.just("Question must not be empty");
             }
 
-            // 使用 Spring AI stream API 返回 Flux<String>，并复用 pm_api_query 工具链。
+            PmApiQueryResponse pmApiResult = pmApiQueryTool.execute(
+                    PmApiQueryRequest.builder().question(question).build(),
+                    authorization
+            );
+
+            String system = SYSTEM;
+            if (pmApiResult.isSuccess()) {
+                // Spring AI 2.0.0-RC1 的 OpenAI 兼容流式 tool calling 在部分模型上会中断。
+                // 流式入口先完成 PM 查询，再把真实后端数据作为上下文交给模型生成 SSE 内容。
+                system = SYSTEM + "\n\nPM backend query result is already available.\n"
+                        + "OperationId: " + pmApiResult.getOperationId() + "\n"
+                        + "Data:\n" + pmApiResult.getData();
+            } else {
+                system = SYSTEM + "\n\nPM backend query was not executed successfully: "
+                        + pmApiResult.getMessage();
+            }
+
+            // 使用 Spring AI stream API 返回 Flux<String>，前端可逐段渲染最终回答。
             return chatClient.prompt()
-                    .system(SYSTEM)
-                    .user(question).tools(ToolCallbackProvider.from(pmApiQueryTool.toolCallback(authorization)))
+                    .system(system)
+                    .user(question)
                     .stream()
-                    .content();
+                    .content()
+                    .filter(content -> !content.isEmpty())
+                    .onErrorResume(error -> {
+                        log.error("流式响应处理失败", error);
+                        return Flux.just("\n\n[响应处理出错，请重试]");
+                    });
         } catch (Exception e) {
             // 构建流之前发生异常时，返回一个错误文本片段，避免连接直接无响应。
             log.error("流式聊天请求失败", e);
