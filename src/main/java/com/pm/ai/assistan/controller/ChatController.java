@@ -5,39 +5,35 @@ import com.pm.ai.assistan.service.ChatService;
 import com.pm.ai.assistan.unit.AgentResult;
 import com.pm.ai.assistan.vo.ChatResponseVO;
 import lombok.RequiredArgsConstructor;
-import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
 
+/**
+ * AI 聊天控制器：对外暴露普通聊天和流式聊天入口。
+ */
 @RestController
 @RequestMapping("/ai")
 @RequiredArgsConstructor
 public class ChatController {
 
     private final ChatService chatService;
-    private final ChatClient chatClient;
-
-    private static final String SYSTEM = """
-            你是 PM 项目管理系统智能助手，名字叫路小科。
-            回答要简洁、清晰，适合企业管理人员阅读。
-            """;
 
     @PostMapping("/chat")
     public AgentResult<ChatResponseVO> chat(@RequestBody ChatRequest request,
                                             @RequestHeader("Authorization") String authorization) {
+        // 普通聊天入口：交给服务层完成鉴权校验、工具调用和回答生成。
         return chatService.chat(request, authorization);
     }
 
-    @PostMapping("/chat/stream")
-    public AgentResult<ChatResponseVO> chatStream(@RequestBody ChatRequest request) {
-        String answer = chatClient.prompt()
-                .system(SYSTEM)
-                .user(request.getQuestion())
-                .call()
-                .content();
-        return AgentResult.success("success", ChatResponseVO.assistant(answer, null));
+    @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> chatStream(@RequestBody ChatRequest request,
+                                   @RequestHeader("Authorization") String authorization) {
+        // 流式聊天入口：返回 SSE 内容流，并复用服务层的 PM 工具调用链。
+        return chatService.chatStream(request, authorization);
     }
 }

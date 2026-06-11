@@ -24,6 +24,7 @@
         <lombok.version>1.18.42</lombok.version>
         <spring-ai.version>2.0.0-RC1</spring-ai.version>
         <spring-redis.version>4.0.6</spring-redis.version>
+        <spring-agent.version>1.1.2.0</spring-agent.version>
     <kotlin.version>2.3.10</kotlin.version>
     </properties>
 
@@ -73,6 +74,11 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
             <version>${spring-redis.version}</version>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.cloud.ai</groupId>
+            <artifactId>spring-ai-alibaba-agent-framework</artifactId>
+            <version>${spring-agent.version}</version>
         </dependency>
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>
