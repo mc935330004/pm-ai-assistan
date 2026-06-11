@@ -22,3 +22,7 @@ server:
 pm:
   system:
     base-url: http://localhost:9999/pm
+    openapi-url: http://pm.s-ic.cn/pm/v3/api-docs
+  tools:
+    read-only-only: true
+    catalog-refresh-interval: 10m

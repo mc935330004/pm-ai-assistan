@@ -92,14 +92,13 @@ public class ChatService {
             // 使用 Spring AI stream API 返回 Flux<String>，并复用 pm_api_query 工具链。
             return chatClient.prompt()
                     .system(SYSTEM)
-                    .user(question)
-                    .toolCallbacks(ToolCallbackProvider.from(pmApiQueryTool.toolCallback(authorization)))
+                    .user(question).tools(ToolCallbackProvider.from(pmApiQueryTool.toolCallback(authorization)))
                     .stream()
                     .content();
         } catch (Exception e) {
             // 构建流之前发生异常时，返回一个错误文本片段，避免连接直接无响应。
-            log.error("Streaming chat request failed", e);
-            return Flux.just("Streaming chat request failed");
+            log.error("流式聊天请求失败", e);
+            return Flux.just("聊天请求失败");
         }
     }
 }
