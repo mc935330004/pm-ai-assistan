@@ -1,0 +1,43 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+  ai:
+    openai:
+      # 开发环境允许用占位 key 启动；真实调用大模型时请设置 OPENAI_API_KEY。
+      api-key: ${OPENAI_API_KEY:dev-placeholder-api-key}
+  data:
+    redis:
+      client-name:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:123456}
+      database: ${REDIS_DATABASE:1}
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${MYSQL_URL:jdbc:mysql://127.0.0.1:3306/mc-agent?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root}
+
+auth:
+  cors:
+    # 开发环境允许本机和局域网 Vite 地址访问。
+    allowed-origin-patterns:
+      - http://localhost:*
+      - http://127.0.0.1:*
+      - http://192.168.*.*:*
+  registration:
+    # 开发环境默认开放账号申请，方便前端联调注册流程。
+    enabled: ${AUTH_REGISTRATION_ENABLED:true}
+  default-admin:
+    # 开发环境保留默认管理员，生产环境禁止使用默认密码。
+    enabled: ${AUTH_DEFAULT_ADMIN_ENABLED:true}
+    username: ${AUTH_DEFAULT_ADMIN_USERNAME:admin}
+    password: ${AUTH_DEFAULT_ADMIN_PASSWORD:admin123456}
+    display-name: ${AUTH_DEFAULT_ADMIN_DISPLAY_NAME:系统管理员}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

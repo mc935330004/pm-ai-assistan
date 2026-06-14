@@ -1,28 +1,51 @@
 spring:
   application:
     name: pm-ai-assistan
+  profiles:
+    # 默认使用 dev，生产启动时通过 SPRING_PROFILES_ACTIVE=prod 切换。
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY:}
-      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      # 通用模型网关地址和模型名称不属于密钥，允许通过环境变量覆盖。
+      base-url: ${OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
       chat:
-        model: qwen-plus
-  data:
-    redis:
-      client-name:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-      database: 1
+        model: ${OPENAI_MODEL:qwen-plus}
+  # Flyway 自动初始化认证表结构；生产库如需手动建表，可设置 SPRING_FLYWAY_ENABLED=false。
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    baseline-on-migrate: true
+
 server:
-  port: 8999
+  port: ${SERVER_PORT:8999}
   servlet:
-    context-path: /agent-pm
-  #pm系统配置
+    context-path: ${SERVER_SERVLET_CONTEXT_PATH:/agent-pm}
+
+# PM 系统配置，不同环境可通过环境变量覆盖。
 pm:
   system:
-    base-url: http://localhost:9999/pm
-    openapi-url: http://pm.s-ic.cn/pm/v3/api-docs
+    base-url: ${PM_SYSTEM_BASE_URL:http://pm.s-ic.cn/pm}
+    openapi-url: ${PM_SYSTEM_OPENAPI_URL:http://pm.s-ic.cn/pm/v3/api-docs}
   tools:
-    read-only-only: true
-    catalog-refresh-interval: 10m
+    read-only-only: ${PM_TOOLS_READ_ONLY_ONLY:true}
+    catalog-refresh-interval: ${PM_TOOLS_CATALOG_REFRESH_INTERVAL:10m}
+
+mybatis:
+  # 按不同 Mapper 拆分 XML 文件，XML 放在 src/main/resources/mapper 下。
+  mapper-locations: classpath*:mapper/**/*.xml
+  # 数据库字段使用下划线，Java 字段使用驼峰，开启自动映射。
+  configuration:
+    map-underscore-to-camel-case: true
+
+auth:
+  # 本地登录 token 在 Redis 中的有效期。
+  token-ttl: ${AUTH_TOKEN_TTL:24h}
+
+logging:
+  # 默认保留正常 INFO 启动信息，具体环境可以在 profile 配置里收紧。
+  level:
+    root: info
+    com.pm.ai: info
+    org.springframework: info
+    org.mybatis: warn
+    com.zaxxer.hikari: warn
+    org.flywaydb: info

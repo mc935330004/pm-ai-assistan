@@ -10,6 +10,13 @@ target/
 ### Logs ###
 *.log
 
+### Local environment ###
+.env
+.env.*
+!.env.example
+src/main/resources/application-local.yml
+ai-auth/src/test/resources/application-local.yml
+
 ### OS ###
 .DS_Store
 Thumbs.db

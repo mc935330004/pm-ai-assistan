@@ -1,0 +1,40 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  ai:
+    openai:
+      # 生产环境必须通过环境变量提供真实 key，源码不保留任何真实密钥。
+      api-key: ${OPENAI_API_KEY}
+  data:
+    redis:
+      client-name:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      database: ${REDIS_DATABASE:1}
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${MYSQL_URL}
+    username: ${MYSQL_USERNAME}
+    password: ${MYSQL_PASSWORD}
+
+auth:
+  cors:
+    # 生产环境建议配置为精确前端域名，多个域名可用逗号分隔。
+    allowed-origin-patterns: ${AUTH_CORS_ALLOWED_ORIGIN_PATTERNS}
+  registration:
+    # 生产环境默认关闭公开注册，按需通过环境变量打开。
+    enabled: ${AUTH_REGISTRATION_ENABLED:false}
+  default-admin:
+    # 生产环境默认不创建默认管理员，建议通过数据库初始化或运维流程创建。
+    enabled: ${AUTH_DEFAULT_ADMIN_ENABLED:false}
+    username: ${AUTH_DEFAULT_ADMIN_USERNAME:admin}
+    password: ${AUTH_DEFAULT_ADMIN_PASSWORD:}
+    display-name: ${AUTH_DEFAULT_ADMIN_DISPLAY_NAME:系统管理员}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:false}

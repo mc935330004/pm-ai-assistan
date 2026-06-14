@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: ai-auth-test
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${MYSQL_URL:jdbc:mysql://127.0.0.1:3306/mc-agent?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root}
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password: 123456
+      database: 1
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+mybatis:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+auth:
+  token-ttl: 24h
+  cors:
+    allowed-origin-patterns:
+      - http://localhost:*
+      - http://127.0.0.1:*
+      - http://192.168.*.*:*
+  registration:
+    enabled: true
+  default-admin:
+    enabled: true
+    username: ${AUTH_DEFAULT_ADMIN_USERNAME:admin}
+    password: ${AUTH_DEFAULT_ADMIN_PASSWORD:admin123456}
+    display-name: ${AUTH_DEFAULT_ADMIN_DISPLAY_NAME:系统管理员}

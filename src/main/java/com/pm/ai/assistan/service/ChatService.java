@@ -1,5 +1,7 @@
 package com.pm.ai.assistan.service;
 
+import com.pm.ai.assistan.auth.exception.PmAuthorizationMissingException;
+import com.pm.ai.assistan.auth.service.AuthService;
 import com.pm.ai.assistan.dto.ChatRequest;
 import com.pm.ai.assistan.unit.AgentResult;
 import com.pm.ai.assistan.vo.ChatResponseVO;
@@ -14,13 +16,27 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 
-/**
- * 聊天服务入口：负责校验请求、注册 PM 查询工具并调用大模型生成回答。
- */
 @Service
 @Slf4j
 @RequiredArgsConstructor
+/**
+ * AI 聊天服务。
+ * 这里把“本地登录 token”和“PM 系统 token”拆开：用户先登录本系统，再单独绑定 PM token。
+ */
 public class ChatService {
+
+    /**
+     * 系统提示词。
+     * 要求模型在需要 PM 数据时先使用 pm_api_query 工具，避免凭空编造项目数据。
+     */
+    private static final String SYSTEM = """
+            你是路小科，PM项目管理助理
+            当用户请求PM系统数据时，请先调用pm_api_query工具。
+            仅使用工具结果或提供的后端数据来回答PM数据问题
+            不要虚构项目、合同、金额、日期、人员或状态
+            只允许进行只读的PM查询。拒绝危险的写入操作。
+            保持回答简洁且专业。
+            """;
 
     /**
      * Spring AI 聊天客户端。
@@ -28,86 +44,71 @@ public class ChatService {
     private final ChatClient chatClient;
 
     /**
-     * 单一 PM 查询工具，内部会根据 OpenAPI 目录路由到具体接口。
+     * PM 查询工具，负责根据 OpenAPI 目录路由到真实 PM 查询接口。
      */
     private final PmApiQueryTool pmApiQueryTool;
 
     /**
-     * 系统提示词：明确要求模型需要 PM 数据时调用 pm_api_query。
+     * 认证服务，用于读取当前会话绑定的 PM token。
      */
-    private static final String SYSTEM = "You are Lu Xiaoke, the PM project management assistant.\n"
-            + "When the user asks for PM system data, call the pm_api_query tool first.\n"
-            + "Use only tool results or provided backend data to answer PM data questions.\n"
-            + "Do not invent projects, contracts, amounts, dates, people, or statuses.\n"
-            + "Only read-only PM queries are allowed. Refuse dangerous write operations.\n"
-            + "Keep answers concise and professional.";
+    private final AuthService authService;
 
     /**
-     * 普通聊天入口：为每次请求创建带当前 Authorization 的工具回调。
+     * 普通聊天。
+     * 会先校验问题内容，再读取 PM token 并把它绑定到工具回调中。
      */
-    public AgentResult<ChatResponseVO> chat(ChatRequest request, String authorization) {
+    public AgentResult<ChatResponseVO> chat(ChatRequest request) {
         try {
-            // 校验用户身份头，避免未授权请求进入工具调用链。
-            if (!StringUtils.hasText(authorization)) {
-                throw new RuntimeException("Missing Authorization request header");
-            }
-
-            // 校验用户问题，避免空问题浪费模型调用。
             String question = request == null ? null : request.getQuestion();
             if (!StringUtils.hasText(question)) {
-                throw new RuntimeException("Question must not be empty");
+                throw new IllegalArgumentException("Question must not be empty");
             }
 
-            // 注册单一目录路由工具，模型只看到 pm_api_query，不直接看到 100 个接口。
+            String pmAuthorization = authService.currentPmAuthorization();
             String answer = chatClient.prompt()
                     .system(SYSTEM)
-                    .user(question).tools(ToolCallbackProvider.from(pmApiQueryTool.toolCallback(authorization)))
+                    .user(question)
+                    .tools(ToolCallbackProvider.from(pmApiQueryTool.toolCallback(pmAuthorization)))
                     .call()
                     .content();
 
-            // 返回前端聊天消息结构，引用数据由工具结果进入模型上下文。
             return AgentResult.success("success", ChatResponseVO.assistant(answer, null));
+        } catch (PmAuthorizationMissingException e) {
+            return AgentResult.fail(e.getMessage(), null);
         } catch (Exception e) {
-            // 捕获聊天链路异常，统一返回 AgentResult 失败结构。
             log.error("Chat request failed", e);
             return AgentResult.fail("Chat request failed", null);
         }
     }
 
     /**
-     * 流式聊天入口：返回模型内容流，前端可以逐段渲染大模型输出。
+     * 流式聊天。
+     * 先同步查询 PM 数据，再把真实后端数据放进模型上下文中生成 SSE 内容。
      */
-    public Flux<String> chatStream(ChatRequest request, String authorization) {
+    public Flux<String> chatStream(ChatRequest request) {
         try {
-            // 流式接口同样校验 Authorization，确保工具调用可以透传用户身份。
-            if (!StringUtils.hasText(authorization)) {
-                return Flux.just("Missing Authorization request header");
-            }
-
-            // 流式接口同样校验问题内容，避免空请求进入模型调用。
             String question = request == null ? null : request.getQuestion();
             if (!StringUtils.hasText(question)) {
                 return Flux.just("Question must not be empty");
             }
 
+            String pmAuthorization = authService.currentPmAuthorization();
             PmApiQueryResponse pmApiResult = pmApiQueryTool.execute(
                     PmApiQueryRequest.builder().question(question).build(),
-                    authorization
+                    pmAuthorization
             );
 
+            // Spring AI 当前流式 tool calling 在部分模型上不稳定，所以流式接口先查 PM，再交给模型总结。
             String system = SYSTEM;
             if (pmApiResult.isSuccess()) {
-                // Spring AI 2.0.0-RC1 的 OpenAI 兼容流式 tool calling 在部分模型上会中断。
-                // 流式入口先完成 PM 查询，再把真实后端数据作为上下文交给模型生成 SSE 内容。
                 system = SYSTEM + "\n\nPM backend query result is already available.\n"
                         + "OperationId: " + pmApiResult.getOperationId() + "\n"
                         + "Data:\n" + pmApiResult.getData();
             } else {
-                system = SYSTEM + "\n\nPM backend query was not executed successfully: "
+                system = SYSTEM + "\n "
                         + pmApiResult.getMessage();
             }
 
-            // 使用 Spring AI stream API 返回 Flux<String>，前端可逐段渲染最终回答。
             return chatClient.prompt()
                     .system(system)
                     .user(question)
@@ -115,12 +116,13 @@ public class ChatService {
                     .content()
                     .filter(content -> !content.isEmpty())
                     .onErrorResume(error -> {
-                        log.error("流式响应处理失败", error);
+                        log.error("Streaming chat response failed", error);
                         return Flux.just("\n\n[响应处理出错，请重试]");
                     });
+        } catch (PmAuthorizationMissingException e) {
+            return Flux.just(e.getMessage());
         } catch (Exception e) {
-            // 构建流之前发生异常时，返回一个错误文本片段，避免连接直接无响应。
-            log.error("流式聊天请求失败", e);
+            log.error("Streaming chat request failed", e);
             return Flux.just("聊天请求失败");
         }
     }

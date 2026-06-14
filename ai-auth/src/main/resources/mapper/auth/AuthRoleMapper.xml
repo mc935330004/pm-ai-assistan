@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.pm.ai.assistan.auth.mapper.AuthRoleMapper">
+
+    <!-- 角色实体字段映射：对应 auth_role 表。 -->
+    <resultMap id="AuthRoleResultMap" type="com.pm.ai.assistan.auth.model.AuthRole">
+        <id property="id" column="id"/>
+        <result property="code" column="code"/>
+        <result property="name" column="name"/>
+        <result property="description" column="description"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <!-- 角色表基础字段，查询角色时统一复用。 -->
+    <sql id="Base_Column_List">
+        id,
+        code,
+        name,
+        description,
+        created_at
+    </sql>
+
+    <!-- 查询全部角色，管理端分配角色时使用。 -->
+    <select id="listRoles" resultMap="AuthRoleResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from auth_role
+        order by code
+    </select>
+
+    <!-- 按角色编码查询，用于启动时判断种子角色是否存在。 -->
+    <select id="findByCode" resultMap="AuthRoleResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from auth_role
+        where code = #{code}
+    </select>
+
+    <!-- 按角色主键查询，用于角色授权前校验角色是否存在。 -->
+    <select id="findById" resultMap="AuthRoleResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from auth_role
+        where id = #{id}
+    </select>
+
+    <!-- 根据一组角色编码查询角色 id，用于给用户分配角色。 -->
+    <select id="findIdsByCodes" resultType="java.lang.Long">
+        select id
+        from auth_role
+        where code in
+        <foreach collection="codes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+    </select>
+
+    <!-- 查询用户拥有的角色编码，登录成功后会写入 Redis 会话。 -->
+    <select id="findRoleCodesByUserId" resultType="java.lang.String">
+        select r.code
+        from auth_role r
+        inner join auth_user_role ur on ur.role_id = r.id
+        where ur.user_id = #{userId}
+        order by r.code
+    </select>
+
+    <!-- 新增角色种子数据，MySQL 自增 id 会回填到 role.id。 -->
+    <insert id="insert" parameterType="com.pm.ai.assistan.auth.model.AuthRole" useGeneratedKeys="true" keyProperty="id">
+        insert into auth_role (code, name, description)
+        values (#{code}, #{name}, #{description})
+    </insert>
+
+    <!-- 给用户绑定单个角色，注册账号时默认绑定 USER 角色。 -->
+    <insert id="insertUserRole">
+        insert into auth_user_role (user_id, role_id)
+        values (#{userId}, #{roleId})
+    </insert>
+
+    <!-- 批量给用户绑定角色，管理端重新分配角色时使用。 -->
+    <insert id="insertUserRoles">
+        insert into auth_user_role (user_id, role_id)
+        values
+        <foreach collection="roleIds" item="roleId" separator=",">
+            (#{userId}, #{roleId})
+        </foreach>
+    </insert>
+
+    <!-- 删除用户现有角色，重新分配角色前先清空关系表。 -->
+    <delete id="deleteUserRoles">
+        delete from auth_user_role
+        where user_id = #{userId}
+    </delete>
+
+</mapper>

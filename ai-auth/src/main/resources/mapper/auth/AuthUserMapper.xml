@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.pm.ai.assistan.auth.mapper.AuthUserMapper">
+
+    <!-- 用户实体字段映射：数据库下划线字段转换为 Java 驼峰字段。 -->
+    <resultMap id="AuthUserResultMap" type="com.pm.ai.assistan.auth.model.AuthUser">
+        <id property="id" column="id"/>
+        <result property="username" column="username"/>
+        <result property="displayName" column="display_name"/>
+        <result property="passwordHash" column="password_hash"/>
+        <result property="email" column="email"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <!-- 用户表基础字段，所有查询复用，避免后面新增字段时多处遗漏。 -->
+    <sql id="Base_Column_List">
+        id,
+        username,
+        display_name,
+        password_hash,
+        email,
+        status,
+        created_at,
+        updated_at
+    </sql>
+
+    <!-- 登录查询：支持用户名或邮箱登录，密码校验由 AuthService 使用 BCrypt 完成。 -->
+    <select id="findByAccount" resultMap="AuthUserResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from auth_user
+        where username = #{account}
+           or email = #{account}
+        limit 1
+    </select>
+
+    <!-- 根据用户名查询用户，用于注册去重和默认管理员初始化。 -->
+    <select id="findByUsername" resultMap="AuthUserResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from auth_user
+        where username = #{username}
+        limit 1
+    </select>
+
+    <!-- 根据邮箱查询用户，用于注册或创建用户时校验邮箱唯一性。 -->
+    <select id="findByEmail" resultMap="AuthUserResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from auth_user
+        where email = #{email}
+        limit 1
+    </select>
+
+    <!-- 根据用户主键查询用户，管理端启用、禁用、分配角色后会重新加载用户。 -->
+    <select id="findById" resultMap="AuthUserResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from auth_user
+        where id = #{id}
+    </select>
+
+    <!-- 管理端用户列表：status 为空查询全部，keyword 支持账号、展示名、邮箱模糊匹配。 -->
+    <select id="listUsers" resultMap="AuthUserResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from auth_user
+        <where>
+            <if test="status != null and status != ''">
+                status = #{status}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                and (
+                    username like concat('%', #{keyword}, '%')
+                    or display_name like concat('%', #{keyword}, '%')
+                    or email like concat('%', #{keyword}, '%')
+                )
+            </if>
+        </where>
+        order by id desc
+    </select>
+
+    <!-- 新增用户：useGeneratedKeys 会把 MySQL 自增 id 回填到 user.id。 -->
+    <insert id="insert" parameterType="com.pm.ai.assistan.auth.model.AuthUser" useGeneratedKeys="true" keyProperty="id">
+        insert into auth_user (username, display_name, password_hash, email, status)
+        values (#{username}, #{displayName}, #{passwordHash}, #{email}, #{status})
+    </insert>
+
+    <!-- 更新用户基础资料，预留给个人资料或管理端编辑能力。 -->
+    <update id="updateProfile" parameterType="com.pm.ai.assistan.auth.model.AuthUser">
+        update auth_user
+        set display_name = #{displayName},
+            email = #{email},
+            updated_at = current_timestamp
+        where id = #{id}
+    </update>
+
+    <!-- 管理员启用或禁用用户，返回受影响行数用于判断用户是否存在。 -->
+    <update id="updateStatus">
+        update auth_user
+        set status = #{status},
+            updated_at = current_timestamp
+        where id = #{id}
+    </update>
+
+</mapper>
