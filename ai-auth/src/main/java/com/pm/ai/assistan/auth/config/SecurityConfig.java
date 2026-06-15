@@ -2,6 +2,7 @@ package com.pm.ai.assistan.auth.config;
 
 import com.pm.ai.assistan.auth.security.BearerAuthenticationFilter;
 import com.pm.ai.assistan.auth.security.SecurityResponseHandler;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -71,7 +72,9 @@ public class SecurityConfig {
                         .accessDeniedHandler(securityResponseHandler)
                 )
                 .authorizeHttpRequests(authorize -> authorize
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/error").permitAll()
                         .requestMatchers("/auth/login", "/auth/register").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(HttpMethod.POST, "/ai/**").hasAuthority("AI_CHAT")
